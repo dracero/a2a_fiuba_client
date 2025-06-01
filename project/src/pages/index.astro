@@ -1,0 +1,67 @@
+---
+import Layout from '../layouts/Layout.astro';
+import ChatContainer from '../components/ChatContainer.astro';
+---
+
+<Layout title="A2A Agent Chat">
+  <main class="container">
+    <div class="header">
+      <h1>🤖 A2A Agent Chat</h1>
+      <p>Chatea con agentes inteligentes y comparte imágenes</p>
+    </div>
+    <ChatContainer />
+  </main>
+</Layout>
+
+<style>
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 30px;
+    animation: slideDown 0.8s ease-out;
+  }
+
+  .header h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    background: var(--primary-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 10px;
+  }
+
+  .header p {
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+  }
+
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @media (max-width: 768px) {
+    .container {
+      padding: 10px;
+    }
+
+    .header h1 {
+      font-size: 2rem;
+    }
+  }
+</style>

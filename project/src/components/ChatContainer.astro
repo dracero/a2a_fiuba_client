@@ -1,0 +1,39 @@
+---
+import AgentSelector from './AgentSelector.astro';
+import MessagesArea from './MessagesArea.astro';
+import InputArea from './InputArea.astro';
+import TypingIndicator from './TypingIndicator.astro';
+---
+
+<div class="chat-container">
+  <AgentSelector />
+  <MessagesArea />
+  <TypingIndicator />
+  <InputArea />
+</div>
+
+<style>
+  .chat-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--glass-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 24px;
+    backdrop-filter: blur(20px);
+    box-shadow: var(--shadow-glow);
+    overflow: hidden;
+    animation: slideUp 0.8s ease-out;
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+</style>
