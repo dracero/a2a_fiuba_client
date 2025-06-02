@@ -2,12 +2,83 @@
 import Message from './Message.astro';
 ---
 
-<div class="messages-area" id="messagesArea">
-  <Message 
-    sender="agent" 
-    text="¡Hola! 👋 Soy tu asistente A2A. Selecciona un agente arriba y empecemos a chatear. Puedes enviar texto e imágenes."
-  />
-</div>
+<select id="conversationSelect" style="margin-bottom: 10px; width: 100%;"></select>
+<div class="messages-area" id="messagesArea"></div>
+
+<script type="module">
+  const conversationSelect = document.getElementById('conversationSelect');
+  const messagesArea = document.getElementById('messagesArea');
+
+  async function fetchConversations() {
+    try {
+      const res = await fetch('http://0.0.0.0:12000/conversation/list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      let conversations = [];
+      if (Array.isArray(data.result)) {
+        conversations = data.result;
+      } else if (Array.isArray(data)) {
+        conversations = data;
+      } else if (data.conversations && Array.isArray(data.conversations)) {
+        conversations = data.conversations;
+      }
+      conversationSelect.innerHTML = '';
+      if (conversations.length === 0) {
+        conversationSelect.innerHTML = '<option value="">No hay conversaciones</option>';
+        return;
+      }
+      conversationSelect.innerHTML = '<option value="">Selecciona una conversación</option>' +
+        conversations.map(c => `<option value="${c.id || c.conversation_id}">${c.title || c.id || c.conversation_id}</option>`).join('');
+      // Selección automática si hay una guardada
+      const savedId = localStorage.getItem('current_conversation_id');
+      if (savedId && conversations.some(c => c.id === savedId)) {
+        conversationSelect.value = savedId;
+      }
+    } catch (e) {
+      conversationSelect.innerHTML = '<option value="">Error cargando conversaciones</option>';
+    }
+  }
+
+  async function fetchMessages() {
+    const conversationId = conversationSelect.value || localStorage.getItem('current_conversation_id') || '';
+    if (!conversationId) {
+      messagesArea.innerHTML = '<em>Selecciona una conversación.</em>';
+      return;
+    }
+    const res = await fetch('http://0.0.0.0:12000/message/list', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ params: conversationId })
+    });
+    const data = await res.json();
+    if (data.result && Array.isArray(data.result)) {
+      messagesArea.innerHTML = data.result.map(m => {
+        const sender = m.role === 'user' ? 'user' : 'agent';
+        const text = (m.parts && m.parts.map(p => p.text).join(' ')) || '';
+        return `<div class="message ${sender}"><div class="message-content">${text}</div></div>`;
+      }).join('');
+    } else {
+      messagesArea.innerHTML = '<em>No hay mensajes.</em>';
+    }
+  }
+
+  conversationSelect.addEventListener('change', () => {
+    const selectedId = conversationSelect.value;
+    if (selectedId) {
+      localStorage.setItem('current_conversation_id', selectedId);
+    } else {
+      localStorage.removeItem('current_conversation_id');
+    }
+    fetchMessages();
+  });
+
+  // Inicialización
+  fetchConversations().then(() => fetchMessages());
+  window.fetchMessages = fetchMessages;
+</script>
 
 <style>
   .messages-area {

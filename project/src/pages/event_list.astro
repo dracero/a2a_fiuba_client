@@ -1,0 +1,28 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Eventos">
+  <main class="container">
+    <h1>Lista de Eventos</h1>
+    <p>Visualiza los eventos recientes del sistema.</p>
+    <div id="events-list"></div>
+  </main>
+  <script type="module">
+    async function fetchEvents() {
+      const res = await fetch('http://0.0.0.0:12000/event/list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      const list = document.getElementById('events-list');
+      if (data.result && Array.isArray(data.result)) {
+        list.innerHTML = '<h2>Eventos</h2>' + data.result.map(e => `<div><b>${e.type || e.id}</b>: ${e.content || ''}</div>`).join('');
+      } else {
+        list.innerHTML = '<em>No hay eventos.</em>';
+      }
+    }
+    fetchEvents();
+  </script>
+</Layout>

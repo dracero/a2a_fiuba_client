@@ -1,0 +1,28 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Home">
+  <main class="container">
+    <h1>Inicio</h1>
+    <p>Bienvenido a la página principal del chat A2A.</p>
+    <div id="conversations-list"></div>
+  </main>
+  <script type="module">
+    async function fetchConversations() {
+      const res = await fetch('http://0.0.0.0:12000/conversation/list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      const list = document.getElementById('conversations-list');
+      if (data.result && Array.isArray(data.result)) {
+        list.innerHTML = '<h2>Conversaciones</h2>' + data.result.map(c => `<div><b>ID:</b> ${c.conversation_id || c.id}</div>`).join('');
+      } else {
+        list.innerHTML = '<em>No hay conversaciones.</em>';
+      }
+    }
+    fetchConversations();
+  </script>
+</Layout>

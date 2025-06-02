@@ -16,6 +16,14 @@ const { title } = Astro.props;
     <title>{title}</title>
   </head>
   <body>
+    <nav class="main-nav">
+      <a href="/home" class="nav-link">Inicio</a>
+      <a href="/agents" class="nav-link">Agentes</a>
+      <a href="/conversation" class="nav-link">Conversación</a>
+      <a href="/event_list" class="nav-link">Eventos</a>
+      <a href="/task_list" class="nav-link">Tareas</a>
+      <a href="/settings" class="nav-link">Configuración</a>
+    </nav>
     <slot />
   </body>
 </html>
@@ -50,5 +58,30 @@ const { title } = Astro.props;
       radial-gradient(circle at 80% 80%, rgba(118, 75, 162, 0.1) 0%, transparent 50%),
       radial-gradient(circle at 40% 60%, rgba(240, 147, 251, 0.05) 0%, transparent 50%);
     overflow-x: hidden;
+  }
+
+  .main-nav {
+    display: flex;
+    gap: 18px;
+    background: var(--glass-bg);
+    padding: 18px 32px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 32px;
+    border-radius: 0 0 18px 18px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    justify-content: center;
+  }
+  .nav-link {
+    color: var(--text-primary);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 1.1rem;
+    padding: 6px 18px;
+    border-radius: 8px;
+    transition: background 0.2s, color 0.2s;
+  }
+  .nav-link:hover, .nav-link.active {
+    background: var(--primary-gradient);
+    color: #fff;
   }
 </style>

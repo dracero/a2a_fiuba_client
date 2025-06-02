@@ -5,8 +5,20 @@ import InputArea from './InputArea.astro';
 import TypingIndicator from './TypingIndicator.astro';
 ---
 
-<div class="chat-container">
-  <AgentSelector />
+<div class="chat-container" id="chatContainer">
+  <div id="agentsListModal" style="display:none; position:fixed; top:0; left:0; width:100vw; background:rgba(0,0,0,0.7); z-index:2000; padding:40px 0 0 0;">
+    <div style="max-width:600px;margin:0 auto;background:#fff;color:#222;border-radius:12px;padding:24px 32px 32px 32px;box-shadow:0 8px 32px rgba(0,0,0,0.25);position:relative;">
+      <button id="closeAgentsListModal" style="position:absolute;top:12px;right:16px;background:#e74c3c;color:#fff;border:none;border-radius:4px;padding:4px 12px;font-weight:bold;cursor:pointer;">Cerrar</button>
+      <h2 style="margin-top:0;">Agentes registrados</h2>
+      <div id="agentsList"></div>
+    </div>
+  </div>
+  <div class="chat-header-row">
+    <div class="dropdown-agents">
+      <button id="dropdownAgentsBtn" class="dropdown-btn">Agentes</button>
+    </div>
+    <AgentSelector />
+  </div>
   <MessagesArea />
   <TypingIndicator />
   <InputArea />
@@ -25,15 +37,110 @@ import TypingIndicator from './TypingIndicator.astro';
     overflow: hidden;
     animation: slideUp 0.8s ease-out;
   }
-
-  @keyframes slideUp {
-    from {
-      opacity: 0;
-      transform: translateY(30px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+  .chat-header-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px 0 20px;
+    background: transparent;
+  }
+  .dropdown-agents {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  .dropdown-btn {
+    background: #e74c3c;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 1.2rem;
+  }
+  .dropdown-menu {
+    display: none;
+    position: absolute;
+    left: 0;
+    top: 110%;
+    background: #fff;
+    color: #222;
+    min-width: 180px;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    z-index: 1001;
+    padding: 8px 0;
+  }
+  .dropdown-menu button {
+    width: 100%;
+    background: none;
+    border: none;
+    color: #222;
+    padding: 10px 18px;
+    text-align: left;
+    cursor: pointer;
+    font-size: 1rem;
+    border-radius: 0;
+  }
+  .dropdown-menu button:hover {
+    background: #f2f2f2;
+  }
+  .dropdown-agents.open .dropdown-menu {
+    display: block;
   }
 </style>
+<script is:inline>
+  document.addEventListener('DOMContentLoaded', () => {
+    // --- Dropdown sólo para mostrar la lista ---
+    const dropdownBtn = document.getElementById('dropdownAgentsBtn');
+    const agentsListModal = document.getElementById('agentsListModal');
+    const agentsList = document.getElementById('agentsList');
+    dropdownBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      agentsListModal.style.display = 'block';
+      agentsList.innerHTML = '<p>Cargando agentes...</p>';
+      const requestOptions = { method: "POST", redirect: "follow" };
+      try {
+        const res = await fetch('http://0.0.0.0:12000/agent/list', requestOptions);
+        const text = await res.text();
+        let agents;
+        try { agents = JSON.parse(text); } catch (e) {
+          agentsList.innerHTML = `<p>Respuesta inesperada del servidor:<br><pre>${text.replace(/</g,'&lt;')}</pre></p>`;
+          return;
+        }
+        function findAgentsArray(obj) {
+          if (Array.isArray(obj)) return obj;
+          if (typeof obj === 'object' && obj !== null) {
+            for (const key in obj) {
+              if (Array.isArray(obj[key])) return obj[key];
+              const found = findAgentsArray(obj[key]);
+              if (found) return found;
+            }
+          }
+          return null;
+        }
+        const agentsArr = findAgentsArray(agents);
+        agentsList.innerHTML = '';
+        if (Array.isArray(agentsArr) && agentsArr.length > 0) {
+          agentsArr.forEach(agent => {
+            agentsList.innerHTML += `
+              <div class=\"agent-card\">
+                <h3>${agent.name || 'Sin nombre'}</h3>
+                <p>${agent.description || 'Sin descripción'}</p>
+                <a href='${agent.url || '#'}' target='_blank'>${agent.url || 'Sin URL'}</a>
+              </div>
+            `;
+          });
+        } else {
+          agentsList.innerHTML = `<p>No se encontraron agentes en la respuesta:<br><pre>${JSON.stringify(agents, null, 2)}</pre></p>`;
+        }
+      } catch (err) {
+        agentsList.innerHTML = `<p>Error al cargar los agentes: ${err}</p>`;
+      }
+    });
+    document.getElementById('closeAgentsListModal').onclick = () => {
+      agentsListModal.style.display = 'none';
+    };
+  });
+</script>

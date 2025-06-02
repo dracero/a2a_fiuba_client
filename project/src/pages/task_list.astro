@@ -1,0 +1,28 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Tareas">
+  <main class="container">
+    <h1>Lista de Tareas</h1>
+    <p>Visualiza las tareas activas.</p>
+    <div id="tasks-list"></div>
+  </main>
+  <script type="module">
+    async function fetchTasks() {
+      const res = await fetch('http://0.0.0.0:12000/task/list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      const list = document.getElementById('tasks-list');
+      if (data.result && Array.isArray(data.result)) {
+        list.innerHTML = '<h2>Tareas</h2>' + data.result.map(t => `<div><b>${t.name || t.id}</b>: ${t.status || ''}</div>`).join('');
+      } else {
+        list.innerHTML = '<em>No hay tareas.</em>';
+      }
+    }
+    fetchTasks();
+  </script>
+</Layout>

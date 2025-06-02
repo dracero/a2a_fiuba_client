@@ -1,0 +1,46 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Configuración">
+  <main class="container">
+    <h1>Configuración</h1>
+    <p>Ajusta la configuración de la aplicación y la API Key.</p>
+    <form id="api-key-form">
+      <label for="api-key-input">API Key:</label>
+      <input type="password" id="api-key-input" name="api-key" />
+      <button type="submit">Actualizar</button>
+    </form>
+    <div id="settings-status"></div>
+  </main>
+  <script type="module">
+    async function fetchApiKey() {
+      const res = await fetch('http://0.0.0.0:12000/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (data.result && data.result.api_key) {
+        document.getElementById('api-key-input').value = data.result.api_key;
+      }
+    }
+    fetchApiKey();
+    document.getElementById('api-key-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const apiKey = document.getElementById('api-key-input').value;
+      const res = await fetch('http://0.0.0.0:12000/settings/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: apiKey })
+      });
+      const data = await res.json();
+      const status = document.getElementById('settings-status');
+      if (res.ok) {
+        status.innerHTML = '<span style="color:green">API Key actualizada correctamente.</span>';
+      } else {
+        status.innerHTML = '<span style="color:red">Error al actualizar API Key.</span>';
+      }
+    });
+  </script>
+</Layout>

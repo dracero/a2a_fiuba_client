@@ -1,0 +1,54 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Agentes">
+  <main class="container">
+    <h1>Agentes</h1>
+    <p>Administra y registra agentes conectados.</p>
+    <form id="register-agent-form" style="margin-bottom:24px;">
+      <input type="text" id="agent-address" placeholder="Dirección del agente (host:puerto)" required style="padding:8px; border-radius:6px; border:1px solid #888; margin-right:8px;" />
+      <button type="submit" style="padding:8px 16px; border-radius:6px; background:var(--primary-gradient); color:#fff; border:none;">Registrar agente</button>
+    </form>
+    <div id="register-status"></div>
+    <div id="agents-list"></div>
+  </main>
+  <script type="module">
+    async function fetchAgents() {
+      const res = await fetch('http://0.0.0.0:12000/agent/list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      const list = document.getElementById('agents-list');
+      if (data.result && Array.isArray(data.result)) {
+        list.innerHTML = '<h2>Agentes registrados</h2>' + data.result.map(a => `<div><b>${a.name || a.id || a}</b></div>`).join('');
+      } else {
+        list.innerHTML = '<em>No hay agentes registrados.</em>';
+      }
+    }
+    fetchAgents();
+    document.getElementById('register-agent-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const address = document.getElementById('agent-address').value;
+      const status = document.getElementById('register-status');
+      status.textContent = 'Registrando agente...';
+      try {
+        const res = await fetch('http://0.0.0.0:12000/agent/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ params: address })
+        });
+        if (res.ok) {
+          status.textContent = 'Agente registrado correctamente.';
+          fetchAgents();
+        } else {
+          status.textContent = 'Error al registrar agente.';
+        }
+      } catch (err) {
+        status.textContent = 'Error de red al registrar agente.';
+      }
+    });
+  </script>
+</Layout>

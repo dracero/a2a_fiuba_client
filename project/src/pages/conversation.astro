@@ -1,0 +1,128 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Conversación">
+  <main class="container">
+    <h1>Conversación</h1>
+    <select id="conversationSelect" style="margin-bottom: 18px; width: 100%; max-width: 500px;"></select>
+    <form id="send-message-form" style="margin-bottom:18px;">
+      <input type="text" id="message-input" placeholder="Escribe tu mensaje..." required style="padding:8px; border-radius:6px; border:1px solid #888; margin-right:8px; width:60%" />
+      <button type="submit" style="padding:8px 16px; border-radius:6px; background:var(--primary-gradient); color:#fff; border:none;">Enviar</button>
+    </form>
+    <div id="messages-list"></div>
+  </main>
+  <script type="module">
+    const conversationSelect = document.getElementById('conversationSelect');
+    const messagesList = document.getElementById('messages-list');
+
+    async function fetchConversations() {
+      try {
+        const res = await fetch('http://0.0.0.0:12000/conversation/list', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        const data = await res.json();
+        let conversations = [];
+        if (Array.isArray(data.result)) {
+          conversations = data.result;
+        } else if (Array.isArray(data)) {
+          conversations = data;
+        } else if (data.conversations && Array.isArray(data.conversations)) {
+          conversations = data.conversations;
+        }
+        conversationSelect.innerHTML = '';
+        if (conversations.length === 0) {
+          conversationSelect.innerHTML = '<option value="">No hay conversaciones</option>';
+          return;
+        }
+        conversationSelect.innerHTML = '<option value="">Selecciona una conversación</option>' +
+          conversations.map(c => `<option value="${c.id || c.conversation_id}">${c.title || c.id || c.conversation_id}</option>`).join('');
+        // Selección automática si hay una guardada
+        const savedId = localStorage.getItem('current_conversation_id');
+        if (savedId && conversations.some(c => c.id === savedId)) {
+          conversationSelect.value = savedId;
+        }
+      } catch (e) {
+        conversationSelect.innerHTML = '<option value="">Error cargando conversaciones</option>';
+      }
+    }
+
+    async function fetchMessages() {
+      const conversationId = conversationSelect.value || localStorage.getItem('current_conversation_id') || '';
+      if (!conversationId) {
+        messagesList.innerHTML = '<em>Selecciona una conversación.</em>';
+        return;
+      }
+      const res = await fetch('http://0.0.0.0:12000/message/list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ params: conversationId })
+      });
+      const data = await res.json();
+      if (data.result && Array.isArray(data.result)) {
+        messagesList.innerHTML = '<h2>Mensajes</h2>' + data.result.map(m => `<div>${m.parts?.map(p => p.text).join(' ') || ''}</div>`).join('');
+      } else {
+        messagesList.innerHTML = '<em>No hay mensajes.</em>';
+      }
+    }
+
+    conversationSelect.addEventListener('change', () => {
+      const selectedId = conversationSelect.value;
+      if (selectedId) {
+        localStorage.setItem('current_conversation_id', selectedId);
+      } else {
+        localStorage.removeItem('current_conversation_id');
+      }
+      fetchMessages();
+    });
+
+    document.getElementById('send-message-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const conversationId = conversationSelect.value || localStorage.getItem('current_conversation_id') || '';
+      const input = document.getElementById('message-input');
+      const text = input.value;
+      if (!conversationId) {
+        alert('Selecciona una conversación primero.');
+        return;
+      }
+      const myHeaders = new Headers();
+      myHeaders.append('Content-Type', 'application/json');
+      const raw = JSON.stringify({
+        params: {
+          role: 'user',
+          parts: [
+            {
+              type: 'text',
+              text: text
+            }
+          ],
+          metadata: {
+            conversation_id: conversationId
+          }
+        }
+      });
+      const requestOptions = {
+        method: 'POST',
+        headers: myHeaders,
+        body: raw,
+        redirect: 'follow'
+      };
+      try {
+        const res = await fetch('http://0.0.0.0:12000/message/send', requestOptions);
+        if (res.ok) {
+          input.value = '';
+          fetchMessages();
+        } else {
+          alert('Error al enviar el mensaje.');
+        }
+      } catch (err) {
+        alert('Error de red al enviar el mensaje.');
+      }
+    });
+
+    // Inicialización
+    fetchConversations().then(() => fetchMessages());
+  </script>
+</Layout>
