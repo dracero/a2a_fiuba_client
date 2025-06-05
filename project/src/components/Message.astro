@@ -17,12 +17,9 @@ const { sender, text, imageUrl } = Astro.props;
   </div>
 </div>
 
-<!--
-  Si quieres que este componente sea capaz de renderizar mensajes
-  dinámicamente desde el backend, puedes agregar aquí un ejemplo de uso:
-  <Message sender="agent" text="Hola!" />
-  Pero la lógica de fetch y renderizado de la lista de mensajes
-  debe estar en MessagesArea.astro o en el contenedor de chat.
+<!-- Ejemplo de uso dinámico:
+  <Message sender="agent" text="¡Hola! ¿En qué puedo ayudarte?" />
+  <Message sender="user" text="¿Qué es el efecto Doppler?" />
 -->
 
 <style>

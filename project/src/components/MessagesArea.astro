@@ -75,9 +75,116 @@ import Message from './Message.astro';
     fetchMessages();
   });
 
+  // Refrescar mensajes cada 3 segundos si hay conversación seleccionada
+  let autoRefreshInterval = null;
+  function startAutoRefresh() {
+    if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+    autoRefreshInterval = setInterval(() => {
+      const conversationId = conversationSelect.value || localStorage.getItem('current_conversation_id') || '';
+      if (conversationId) fetchMessages();
+    }, 3000);
+  }
+  conversationSelect.addEventListener('change', startAutoRefresh);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') startAutoRefresh();
+    else if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+  });
   // Inicialización
-  fetchConversations().then(() => fetchMessages());
+  fetchConversations().then(() => {
+    fetchMessages();
+    startAutoRefresh();
+  });
   window.fetchMessages = fetchMessages;
+
+  // Enviar mensaje desde el área de mensajes
+  if (!window.sendMessageFromMessagesArea) {
+    window.sendMessageFromMessagesArea = async function(text) {
+      const conversationId = conversationSelect.value || localStorage.getItem('current_conversation_id') || '';
+      if (!conversationId || !text.trim()) return;
+      // Mostrar mensaje del usuario arriba
+      const userDiv = document.createElement('div');
+      userDiv.className = 'message user';
+      const contentDiv = document.createElement('div');
+      contentDiv.className = 'message-content';
+      contentDiv.textContent = text;
+      userDiv.appendChild(contentDiv);
+      messagesArea.appendChild(userDiv);
+      messagesArea.scrollTop = messagesArea.scrollHeight;
+      // Loader de respuesta
+      const loaderDiv = document.createElement('div');
+      loaderDiv.className = 'message agent';
+      loaderDiv.innerHTML = '<div class="message-content"><span class="loader"></span> Procesando...</div>';
+      messagesArea.appendChild(loaderDiv);
+      messagesArea.scrollTop = messagesArea.scrollHeight;
+      // Enviar al backend
+      const myHeaders = new Headers();
+      myHeaders.append('Content-Type', 'application/json');
+      const raw = JSON.stringify({
+        params: {
+          role: 'user',
+          parts: [{ type: 'text', text }],
+          metadata: { conversation_id: conversationId }
+        }
+      });
+      try {
+        const res = await fetch('http://0.0.0.0:12000/message/send', {
+          method: 'POST',
+          headers: myHeaders,
+          body: raw
+        });
+        if (res.ok) {
+          setTimeout(async () => {
+            await fetchMessages();
+            loaderDiv.remove();
+          }, 600);
+        } else {
+          loaderDiv.remove();
+          alert('Error al enviar el mensaje.');
+        }
+      } catch (err) {
+        loaderDiv.remove();
+        alert('Error de red al enviar el mensaje.');
+      }
+    };
+  }
+
+  // Permitir enviar con Enter desde un input externo
+  if (!window._messagesAreaInputListener) {
+    window._messagesAreaInputListener = true;
+    document.addEventListener('keydown', function(e) {
+      const input = document.activeElement;
+      if (input && input.id === 'messageInput' && e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        const text = input.value;
+        input.value = '';
+        window.sendMessageFromMessagesArea(text);
+      }
+    });
+  }
+
+  // Loader CSS solo una vez
+  if (!document.getElementById('messages-area-loader-style')) {
+    const style = document.createElement('style');
+    style.id = 'messages-area-loader-style';
+    style.textContent = `
+      .loader {
+        display: inline-block;
+        width: 18px;
+        height: 18px;
+        border: 3px solid #e0e0e0;
+        border-top: 3px solid #764ba2;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-right: 8px;
+        vertical-align: middle;
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    `;
+    document.head.appendChild(style);
+  }
 </script>
 
 <style>

@@ -18,7 +18,9 @@ import TypingIndicator from './TypingIndicator.astro';
       <button id="dropdownAgentsBtn" class="dropdown-btn">Agentes</button>
     </div>
     <AgentSelector />
+    <button id="createConversationBtn" class="dropdown-btn" style="margin-left:12px;background:#667eea;">+ Nueva conversación</button>
   </div>
+  <form id="send-message-form" style="display:none"></form>
   <MessagesArea />
   <TypingIndicator />
   <InputArea />
@@ -142,5 +144,53 @@ import TypingIndicator from './TypingIndicator.astro';
     document.getElementById('closeAgentsListModal').onclick = () => {
       agentsListModal.style.display = 'none';
     };
+    // --- Crear nueva conversación ---
+    const createBtn = document.getElementById('createConversationBtn');
+    if (createBtn) {
+      createBtn.addEventListener('click', async () => {
+        createBtn.disabled = true;
+        createBtn.textContent = 'Creando...';
+        try {
+          const requestOptions = { method: "POST", redirect: "follow" };
+          const res = await fetch("http://0.0.0.0:12000/conversation/create", requestOptions);
+          const text = await res.text();
+          let newId = '';
+          try {
+            const data = JSON.parse(text);
+            newId = data.id || data.conversation_id || (data.result && (data.result.id || data.result.conversation_id)) || '';
+          } catch {}
+          // Refrescar lista de conversaciones en MessagesArea
+          if (window.fetchMessages) window.fetchMessages();
+          if (newId) {
+            localStorage.setItem('current_conversation_id', newId);
+            alert('Conversación creada: ' + newId);
+          } else {
+            alert('Conversación creada, pero no se pudo obtener el ID.');
+          }
+        } catch (err) {
+          alert('Error al crear la conversación.');
+        } finally {
+          createBtn.disabled = false;
+          createBtn.textContent = '+ Nueva conversación';
+        }
+      });
+    }
+    // --- Fix botón enviar: llamar directamente a la función de envío si existe ---
+    const sendBtn = document.getElementById('sendBtn');
+    const messageInput = document.getElementById('messageInput');
+    if (sendBtn && messageInput) {
+      sendBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        // Si existe window.sendMessageFromMessagesArea, úsala
+        if (window.sendMessageFromMessagesArea) {
+          const text = messageInput.value;
+          messageInput.value = '';
+          window.sendMessageFromMessagesArea(text);
+        } else {
+          // fallback: trigger Enter
+          messageInput.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      });
+    }
   });
 </script>
