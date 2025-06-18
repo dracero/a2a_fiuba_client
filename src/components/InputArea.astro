@@ -1,0 +1,223 @@
+---
+import ImagePreview from './ImagePreview.astro';
+---
+
+<div class="input-area">
+  <ImagePreview />
+  
+  <div class="input-container">
+    <div class="input-wrapper">
+      <textarea 
+        id="messageInput" 
+        class="message-input" 
+        placeholder="Escribe tu mensaje aquí..."
+        rows="1"
+      ></textarea>
+      <button class="file-input-btn" onclick="document.getElementById('fileInput').click()">
+        📎
+      </button>
+      <input type="file" id="fileInput" class="file-input" accept="image/*">
+    </div>
+    <button id="sendBtn" class="send-btn">Enviar</button>
+  </div>
+  <div id="previewContainer" class="image-preview-container">
+    <img id="imagePreview" class="image-preview" src="" alt="Vista previa de la imagen" />
+    <button id="removePreview" class="remove-preview-btn">❌</button>
+  </div>
+</div>
+
+<style>
+  .input-area {
+    padding: 20px;
+    border-top: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .input-container {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+  }
+
+  .input-wrapper {
+    flex: 1;
+    position: relative;
+  }
+
+  .message-input {
+    width: 100%;
+    min-height: 50px;
+    max-height: 120px;
+    padding: 12px 50px 12px 16px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    color: var(--text-primary);
+    font-size: 1rem;
+    font-family: inherit;
+    resize: none;
+    outline: none;
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+  }
+
+  .message-input:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+  }
+
+  .message-input::placeholder {
+    color: var(--text-secondary);
+  }
+
+  .file-input-btn {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: color 0.3s ease;
+  }
+
+  .file-input-btn:hover {
+    color: #667eea;
+  }
+
+  .file-input {
+    display: none;
+  }
+
+  .send-btn {
+    padding: 12px 20px;
+    background: var(--primary-gradient);
+    border: none;
+    border-radius: 16px;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+  }
+
+  .send-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+  }
+
+  .send-btn:active {
+    transform: translateY(0);
+  }
+
+  .send-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .image-preview-container {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 12px;
+  }
+
+  .image-preview {
+    max-width: 100%;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+
+  .remove-preview-btn {
+    margin-top: 8px;
+    background: none;
+    border: none;
+    color: #ff4d4f;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: color 0.3s ease;
+  }
+
+  .remove-preview-btn:hover {
+    color: #ff7875;
+  }
+
+  @media (max-width: 768px) {
+    .input-container {
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .send-btn {
+      width: 100%;
+    }
+  }
+</style>
+
+<script type="module">
+// Lógica para previsualizar y enviar imágenes
+const fileInput = document.getElementById('fileInput');
+const imagePreview = document.getElementById('imagePreview');
+const previewContainer = document.getElementById('previewContainer');
+const removePreview = document.getElementById('removePreview');
+const sendBtn = document.getElementById('sendBtn');
+const messageInput = document.getElementById('messageInput');
+
+let selectedImageDataUrl = null;
+
+if (fileInput && imagePreview && previewContainer && removePreview) {
+  fileInput.addEventListener('change', (e) => {
+    const file = fileInput.files && fileInput.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        selectedImageDataUrl = e.target.result;
+        imagePreview.src = selectedImageDataUrl;
+        previewContainer.classList.add('active');
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+  removePreview.addEventListener('click', () => {
+    selectedImageDataUrl = null;
+    imagePreview.src = '';
+    previewContainer.classList.remove('active');
+    fileInput.value = '';
+  });
+}
+
+if (sendBtn && messageInput) {
+  sendBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const text = messageInput.value.trim();
+    if (!text && !selectedImageDataUrl) return;
+    // Mostrar mensaje del usuario arriba
+    const messagesArea = document.getElementById('messagesArea');
+    const userDiv = document.createElement('div');
+    userDiv.className = 'message user';
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    if (selectedImageDataUrl) {
+      contentDiv.innerHTML = `<div class='mb-3'><img src='${selectedImageDataUrl}' alt='Imagen subida' class='message-image rounded-lg max-w-full h-auto shadow-sm hover:shadow-md transition-shadow duration-200' loading='lazy' /></div>`;
+    }
+    if (text) {
+      contentDiv.innerHTML += text;
+    }
+    userDiv.appendChild(contentDiv);
+    if (messagesArea) {
+      messagesArea.appendChild(userDiv);
+      messagesArea.scrollTop = messagesArea.scrollHeight;
+    }
+    // Limpiar preview y textarea
+    if (previewContainer) previewContainer.classList.remove('active');
+    if (imagePreview) imagePreview.src = '';
+    if (fileInput) fileInput.value = '';
+    selectedImageDataUrl = null;
+    messageInput.value = '';
+    // Aquí podrías enviar la imagen al backend si lo deseas
+  });
+}
+</script>

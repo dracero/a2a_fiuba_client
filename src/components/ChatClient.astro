@@ -1,0 +1,302 @@
+class A2AChatInterface {
+  constructor() {
+    this.messagesArea = document.getElementById('messagesArea');
+    this.messageInput = document.getElementById('messageInput');
+    this.sendBtn = document.getElementById('sendBtn');
+    this.agentSelect = document.getElementById('agentSelect');
+    this.fileInput = document.getElementById('fileInput');
+    this.previewContainer = document.getElementById('previewContainer');
+    this.imagePreview = document.getElementById('imagePreview');
+    this.removePreview = document.getElementById('removePreview');
+    this.typingIndicator = document.getElementById('typingIndicator');
+    
+    this.selectedFile = null;
+    this.currentAgent = '';
+    
+    this.initEventListeners();
+  }
+
+  initEventListeners() {
+    this.sendBtn?.addEventListener('click', () => this.sendMessage());
+    this.messageInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        this.sendMessage();
+      }
+    });
+    
+    this.messageInput?.addEventListener('input', () => this.autoResize());
+    this.agentSelect?.addEventListener('change', (e) => this.selectAgent(e.target.value));
+    this.fileInput?.addEventListener('change', (e) => this.handleFileSelect(e));
+    this.removePreview?.addEventListener('click', () => this.removeImagePreview());
+  }
+
+  autoResize() {
+    this.messageInput.style.height = 'auto';
+    this.messageInput.style.height = Math.min(this.messageInput.scrollHeight, 120) + 'px';
+  }
+
+  async selectAgent(agentId) {
+    // Evitar acciones si el agente no cambia
+    if (this.currentAgent === agentId) return;
+    this.currentAgent = agentId;
+    // Limpiar mensajes de sistema previos (opcional: solo los de tipo 'agent')
+    if (this.messagesArea) {
+      const systemMsgs = this.messagesArea.querySelectorAll('.message.agent');
+      systemMsgs.forEach(msg => msg.remove());
+    }
+    if (agentId) {
+      const agentNames = {
+        'general': 'Asistente General',
+        'creative': 'Agente Creativo',
+        'technical': 'Agente Técnico',
+        'analyzer': 'Analizador de Datos'
+      };
+      // Solo mostrar mensaje de éxito tras registro
+      if (agentId === 'general') {
+        try {
+          await this.registerGeneralAgent();
+          this.addMessage(`✅ ${agentNames[agentId]} registrado exitosamente. ¿En qué puedo ayudarte?`, 'agent');
+        } catch (error) {
+          this.addMessage(`❌ Error al registrar ${agentNames[agentId]}: ${error.message}`, 'agent');
+        }
+      } else {
+        this.addMessage(`¡Perfecto! Ahora estás conectado con ${agentNames[agentId]}. ¿En qué puedo ayudarte?`, 'agent');
+      }
+    }
+  }
+
+  async registerGeneralAgent() {
+    const raw = "{\n\t\"params\": \"localhost:10003\"\n}";
+    const requestOptions = {
+      method: "POST",
+      body: raw,
+      redirect: "follow"
+    };
+    
+    try {
+      const response = await fetch("http://0.0.0.0:12000/agent/register", requestOptions);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const result = await response.text();
+      console.log('Agent registration result:', result);
+      return result;
+    } catch (error) {
+      console.error('Error registering agent:', error);
+      throw error;
+    }
+  }
+
+  async createConversation() {
+    try {
+      const res = await fetch('http://0.0.0.0:12000/conversation/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      const data = await res.json();
+      const conversationId = data.id || data.conversation_id || (data.result && (data.result.id || data.result.conversation_id));
+      if (conversationId) {
+        localStorage.setItem('current_conversation_id', conversationId);
+        this.addMessage(`Conversación creada: ${conversationId}`, 'agent');
+        // Aquí podrías refrescar la UI o recargar mensajes
+      } else {
+        this.addMessage('Conversación creada, pero no se pudo obtener el ID.', 'agent');
+      }
+    } catch (err) {
+      this.addMessage('Error al crear la conversación.', 'agent');
+    }
+  }
+
+  handleFileSelect(event) {
+    const file = event.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+      this.selectedFile = file;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        this.imagePreview.src = e.target.result;
+        this.previewContainer.classList.add('active');
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  removeImagePreview() {
+    this.selectedFile = null;
+    this.previewContainer?.classList.remove('active');
+    if (this.fileInput) this.fileInput.value = '';
+  }
+
+  async sendMessage() {
+    const message = this.messageInput?.value.trim();
+    
+    if (!message && !this.selectedFile) return;
+    if (!this.currentAgent) {
+      alert('Por favor selecciona un agente primero');
+      return;
+    }
+
+    // Add user message
+    this.addMessage(message, 'user', this.selectedFile);
+    
+    // Clear input
+    if (this.messageInput) {
+      this.messageInput.value = '';
+      this.autoResize();
+    }
+    this.removeImagePreview();
+    
+    // Show typing indicator
+    this.showTyping();
+    
+    // Simulate API call to A2A agent
+    try {
+      const response = await this.callA2AAgent(message, this.selectedFile);
+      this.hideTyping();
+      this.addMessage(response, 'agent');
+    } catch (error) {
+      this.hideTyping();
+      this.addMessage('Lo siento, hubo un error al comunicarme con el agente. Por favor intenta de nuevo.', 'agent');
+    }
+  }
+
+  async callA2AAgent(message, file) {
+    // Simulated API call - replace with actual A2A protocol implementation
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const responses = [
+          'Entiendo tu consulta. Basándome en el protocolo A2A, puedo ayudarte con eso.',
+          'Interesante pregunta. Como agente especializado, te recomiendo considerar estos aspectos...',
+          'He procesado tu solicitud. Aquí tienes mi análisis detallado...',
+          'Gracias por compartir esa información. Mi respuesta como agente A2A es...'
+        ];
+        
+        let response = responses[Math.floor(Math.random() * responses.length)];
+        
+        if (file) {
+          response += ' He analizado la imagen que compartiste y puedo ver elementos relevantes para tu consulta.';
+        }
+        
+        resolve(response);
+      }, 1500 + Math.random() * 2000);
+    });
+  }
+
+  addMessage(text, sender, file = null) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${sender}`;
+    
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    contentDiv.textContent = text;
+    
+    if (file) {
+      const img = document.createElement('img');
+      img.className = 'message-image';
+      img.src = URL.createObjectURL(file);
+      img.alt = 'Imagen compartida';
+      contentDiv.appendChild(img);
+    }
+    
+    messageDiv.appendChild(contentDiv);
+    this.messagesArea?.appendChild(messageDiv);
+    this.scrollToBottom();
+  }
+
+  showTyping() {
+    this.typingIndicator?.classList.add('active');
+    this.scrollToBottom();
+  }
+
+  hideTyping() {
+    this.typingIndicator?.classList.remove('active');
+  }
+
+  scrollToBottom() {
+    setTimeout(() => {
+      if (this.messagesArea) {
+        this.messagesArea.scrollTop = this.messagesArea.scrollHeight;
+      }
+    }, 100);
+  }
+}
+
+
+// --- Unificar y limpiar la inicialización para asegurar el botón de salida visible ---
+document.addEventListener('DOMContentLoaded', () => {
+  new A2AChatInterface();
+
+  // --- Mostrar/Ocultar agentes registrados ---
+  // Crear y agregar el contenedor de agentes (inicialmente oculto)
+  let agentsContainer = document.getElementById('agentsContainer');
+  if (!agentsContainer) {
+    agentsContainer = document.createElement('div');
+    agentsContainer.id = 'agentsContainer';
+    agentsContainer.style.display = 'none';
+    agentsContainer.innerHTML = `
+      <button id="backToChatBtn">Volver al chat</button>
+      <h2>Agentes registrados</h2>
+      <div id="agentsList"></div>
+    `;
+    document.body.appendChild(agentsContainer);
+  }
+
+  // Eventos para mostrar/ocultar interfaces
+  const exitBtn = document.getElementById('exitChatBtn');
+  const chatContainer = document.getElementById('chatContainer');
+  if (exitBtn && chatContainer && agentsContainer) {
+    exitBtn.addEventListener('click', async () => {
+      chatContainer.style.display = 'none';
+      agentsContainer.style.display = 'block';
+      const agentsList = document.getElementById('agentsList');
+      if (!agentsList) return;
+      agentsList.innerHTML = '<p>Cargando agentes...</p>';
+      try {
+        const res = await fetch('http://0.0.0.0:12000/agent/list');
+        const agents = await res.json();
+        agentsList.innerHTML = '';
+        if (Array.isArray(agents) && agents.length > 0) {
+          agents.forEach(agent => {
+            const agentDiv = document.createElement('div');
+            agentDiv.className = 'agent-card';
+            agentDiv.innerHTML = `
+              <h3>${agent.name || 'Sin nombre'}</h3>
+              <p>${agent.description || 'Sin descripción'}</p>
+              <a href="${agent.url || '#'}" target="_blank">${agent.url || 'Sin URL'}</a>
+            `;
+            agentsList.appendChild(agentDiv);
+          });
+        } else {
+          agentsList.innerHTML = '<p>No hay agentes registrados.</p>';
+        }
+      } catch (err) {
+        agentsList.innerHTML = '<p>Error al cargar los agentes.</p>';
+      }
+    });
+
+    document.getElementById('backToChatBtn').addEventListener('click', () => {
+      agentsContainer.style.display = 'none';
+      chatContainer.style.display = 'flex';
+    });
+  }
+
+  // --- CSS mínimo para tarjetas de agentes ---
+  if (!document.getElementById('agentsCardStyle')) {
+    const style = document.createElement('style');
+    style.id = 'agentsCardStyle';
+    style.textContent = `
+      .agent-card {
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        margin: 12px 0;
+        padding: 12px;
+        background: #f9f9f9;
+      }
+      #agentsContainer h2 { margin-top: 0 !important; }
+      #agentsList { margin-top: 16px !important; }
+    `;
+    document.head.appendChild(style);
+  }
+});

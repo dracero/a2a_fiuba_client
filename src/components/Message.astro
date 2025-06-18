@@ -1,0 +1,84 @@
+---
+export interface Props {
+  sender: 'user' | 'agent';
+  text: string;
+  imageUrl?: string;
+}
+
+const { sender, text, imageUrl } = Astro.props;
+---
+
+<div class={`message ${sender}`}>
+  <div class="message-content">
+    {text}
+    {imageUrl && (
+      <img src={imageUrl} alt="Shared image" class="message-image" />
+    )}
+  </div>
+</div>
+
+<!-- Ejemplo de uso dinámico:
+  <Message sender="agent" text="¡Hola! ¿En qué puedo ayudarte?" />
+  <Message sender="user" text="¿Qué es el efecto Doppler?" />
+-->
+
+<style>
+  .message {
+    margin-bottom: 20px;
+    animation: messageSlide 0.3s ease-out;
+  }
+
+  .message.user {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .message.agent {
+    display: flex;
+    justify-content: flex-start;
+  }
+
+  .message-content {
+    max-width: 70%;
+    padding: 16px 20px;
+    border-radius: 20px;
+    position: relative;
+    backdrop-filter: blur(10px);
+  }
+
+  .message.user .message-content {
+    background: var(--primary-gradient);
+    color: white;
+    border-bottom-right-radius: 8px;
+  }
+
+  .message.agent .message-content {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-bottom-left-radius: 8px;
+  }
+
+  .message-image {
+    max-width: 100%;
+    border-radius: 12px;
+    margin-top: 10px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  }
+
+  @keyframes messageSlide {
+    from {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @media (max-width: 768px) {
+    .message-content {
+      max-width: 85%;
+    }
+  }
+</style>

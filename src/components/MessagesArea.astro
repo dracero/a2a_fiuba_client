@@ -1,0 +1,342 @@
+---
+import Message from './Message.astro';
+---
+
+<select id="conversationSelect" style="margin-bottom: 10px; width: 100%;"></select>
+<div class="messages-area" id="messagesArea"></div>
+
+<script type="module">
+  const conversationSelect = document.getElementById('conversationSelect');
+  const messagesArea = document.getElementById('messagesArea');
+
+  async function fetchConversations() {
+    try {
+      const res = await fetch('http://0.0.0.0:12000/conversation/list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      let conversations = [];
+      if (Array.isArray(data.result)) {
+        conversations = data.result;
+      } else if (Array.isArray(data)) {
+        conversations = data;
+      } else if (data.conversations && Array.isArray(data.conversations)) {
+        conversations = data.conversations;
+      }
+      conversationSelect.innerHTML = '';
+      if (conversations.length === 0) {
+        conversationSelect.innerHTML = '<option value="">No hay conversaciones</option>';
+        return;
+      }
+      conversationSelect.innerHTML = '<option value="">Selecciona una conversación</option>' +
+        conversations.map(c => `<option value="${c.id || c.conversation_id}">${c.title || c.id || c.conversation_id}</option>`).join('');
+      // Selección automática si hay una guardada
+      const savedId = localStorage.getItem('current_conversation_id');
+      if (savedId && conversations.some(c => c.id === savedId)) {
+        conversationSelect.value = savedId;
+      }
+    } catch (e) {
+      conversationSelect.innerHTML = '<option value="">Error cargando conversaciones</option>';
+    }
+  }
+
+  async function fetchMessages() {
+    try {
+      // Verificar si hay agentes registrados y una conversación seleccionada
+      const conversationId = conversationSelect.value || localStorage.getItem('current_conversation_id') || '';
+      // Si no hay conversación seleccionada, no tiene sentido mostrar mensajes
+      if (!conversationId || conversationSelect.selectedIndex <= 0) {
+        messagesArea.innerHTML = '<em>Registra un agente y comienza una conversación para ver los mensajes.</em>';
+        return;
+      }
+      try {
+        const res = await fetch('http://0.0.0.0:12000/message/list', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ params: conversationId })
+        });
+        if (!res.ok) {
+          messagesArea.innerHTML = `<div class="error-message">Error del servidor: ${res.status} ${res.statusText}</div>`;
+          return;
+        }
+        const data = await res.json();
+        // Si no hay mensajes en la conversación
+        if (!data.result || (Array.isArray(data.result) && data.result.length === 0)) {
+          messagesArea.innerHTML = '<em>Registra un agente y comienza una conversación para ver los mensajes.</em>';
+          return;
+        }
+        if (data.result && Array.isArray(data.result)) {
+          // Usar Promise.all para manejar el renderizado asíncrono de imágenes
+          const messagesPromises = data.result.map(async (m) => {
+            const sender = m.role === 'user' ? 'user' : 'agent';
+            let text = '';
+            let imageUrl = null;
+            // --- NUEVO: Soporte para archivos tipo imagen en parts ---
+            if (m.parts && Array.isArray(m.parts)) {
+              // Buscar part tipo file con mimeType imagen
+              const filePart = m.parts.find(p => p.type === 'file' && p.file && p.file.mimeType && p.file.mimeType.startsWith('image/') && p.file.uri);
+              if (filePart) {
+                // Si la uri es relativa, anteponer host
+                if (filePart.file.uri.startsWith('/')) {
+                  imageUrl = `http://localhost:12000${filePart.file.uri}`;
+                } else {
+                  imageUrl = filePart.file.uri;
+                }
+              }
+              // Concatenar textos normales
+              text = m.parts.filter(p => p.type === 'text' && p.text).map(p => p.text).join(' ');
+            } else if (typeof m === 'string') {
+              text = m;
+            } else if (m.text) {
+              text = m.text;
+            }
+
+            // Detectar si el texto es una URL de imagen
+            if (!imageUrl && text) {
+              const imageUrlRegex = /(https?:\/\/[\w\-._~:/?#\[\]@!$&'()*+,;=%]+\.(?:png|jpg|jpeg|gif|webp))/i;
+              const imageUrlMatch = text.match(imageUrlRegex);
+              const dataUrlRegex = /(data:image\/(?:png|jpg|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+={0,2})/i;
+              const dataUrlMatch = text.match(dataUrlRegex);
+              const artifactIdRegex = /artifact-file-id"\s*:\s*"([a-f0-9\-]{16,})"/i;
+              const artifactMatch = text.match(artifactIdRegex);
+              const artifactFileIdRegex = /artifact file ID:\s*([a-f0-9\-]{16,})/i;
+              const artifactFileIdMatch = text.match(artifactFileIdRegex);
+              const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+              const uuidMatch = text.match(uuidRegex);
+              if (imageUrlMatch) {
+                imageUrl = imageUrlMatch[1];
+              } else if (dataUrlMatch) {
+                imageUrl = dataUrlMatch[1];
+              } else if (artifactMatch) {
+                imageUrl = `http://localhost:12000/conversation?conversation_id=${artifactMatch[1]}`;
+              } else if (artifactFileIdMatch) {
+                imageUrl = `http://localhost:12000/conversation?conversation_id=${artifactFileIdMatch[1]}`;
+              } else if (uuidMatch) {
+                imageUrl = `http://localhost:12000/conversation?conversation_id=${uuidMatch[0]}`;
+              }
+            }
+
+            // Renderizado: si hay imagen, mostrarla con estilos modernos y tamaño máximo
+            let imageHtml = '';
+            if (imageUrl) {
+              imageHtml = `<div class=\"mb-3\"><img src=\"${imageUrl}\" alt=\"Imagen del chat\" class=\"message-image\" style=\"max-width:320px;max-height:220px;width:auto;height:auto;object-fit:contain;display:block;margin:0 auto;\" loading=\"lazy\" onerror=\"this.style.display='none'; if(!this.nextElementSibling){const err=document.createElement('div');err.className='error-message';err.textContent='No se pudo cargar la imagen ('+this.src+')';this.parentNode.appendChild(err);} console.error('Error cargando imagen:', this.src);\" /></div>`;
+            }
+
+            let showText = true;
+            // Si el texto es solo una data URL, ocultar el texto
+            if (imageUrl && imageUrl.startsWith('data:image/') && text.trim() === imageUrl) {
+              showText = false;
+            }
+
+            return `<div class="message ${sender}"><div class="message-content">${showText ? text : ''}${imageHtml}</div></div>`;
+          });
+
+          // Esperar a que todas las promesas se resuelvan
+          const messagesHtml = await Promise.all(messagesPromises);
+          // Scroll al final después de cargar las imágenes SOLO si el usuario ya está cerca del final
+          const isNearBottom = messagesArea.scrollHeight - messagesArea.scrollTop - messagesArea.clientHeight < 120;
+          messagesArea.innerHTML = messagesHtml.join('');
+          if (isNearBottom) {
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+          }
+          
+        } else if (data.error) {
+          messagesArea.innerHTML = `<div class="error-message">Error del backend: ${data.error}</div>`;
+        } else {
+          messagesArea.innerHTML = '<em>No hay mensajes.</em>';
+        }
+      } catch (err) {
+        // Captura errores de red, CORS, backend caído, etc.
+        let msg = 'Error de red o del servidor: ';
+        if (err instanceof TypeError && err.message && err.message.includes('Failed to fetch')) {
+          msg += 'No se pudo conectar con el backend. ¿Está corriendo el servicio en 0.0.0.0:12000?';
+        } else {
+          msg += err.message;
+        }
+        messagesArea.innerHTML = `<div class=\"error-message\">${msg}</div>`;
+      }
+    } catch (outerErr) {
+      messagesArea.innerHTML = '<em>No se puede mostrar el historial de mensajes en este momento.</em>';
+    }
+  }
+
+  conversationSelect.addEventListener('change', () => {
+    const selectedId = conversationSelect.value;
+    if (selectedId) {
+      localStorage.setItem('current_conversation_id', selectedId);
+    } else {
+      localStorage.removeItem('current_conversation_id');
+    }
+    fetchMessages();
+  });
+
+  // Refrescar mensajes cada 3 segundos si hay conversación seleccionada
+  let autoRefreshInterval = null;
+  function startAutoRefresh() {
+    if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+    autoRefreshInterval = setInterval(() => {
+      const conversationId = conversationSelect.value || localStorage.getItem('current_conversation_id') || '';
+      if (conversationId) fetchMessages();
+    }, 3000);
+  }
+  conversationSelect.addEventListener('change', startAutoRefresh);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') startAutoRefresh();
+    else if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+  });
+  // Inicialización
+  fetchConversations().then(() => {
+    fetchMessages();
+    startAutoRefresh();
+  });
+  window.fetchMessages = fetchMessages;
+
+  // Enviar mensaje desde el área de mensajes
+  if (!window.sendMessageFromMessagesArea) {
+    window.sendMessageFromMessagesArea = async function(text) {
+      const conversationId = conversationSelect.value || localStorage.getItem('current_conversation_id') || '';
+      if (!conversationId || !text.trim()) return;
+      // Mostrar mensaje del usuario arriba
+      const userDiv = document.createElement('div');
+      userDiv.className = 'message user';
+      const contentDiv = document.createElement('div');
+      contentDiv.className = 'message-content';
+      contentDiv.textContent = text;
+      userDiv.appendChild(contentDiv);
+      messagesArea.appendChild(userDiv);
+      messagesArea.scrollTop = messagesArea.scrollHeight;
+      // Loader de respuesta
+      const loaderDiv = document.createElement('div');
+      loaderDiv.className = 'message agent';
+      loaderDiv.innerHTML = '<div class="message-content"><span class="loader"></span> Procesando...</div>';
+      messagesArea.appendChild(loaderDiv);
+      messagesArea.scrollTop = messagesArea.scrollHeight;
+      // Enviar al backend con el formato solicitado
+      const myHeaders = new Headers();
+      myHeaders.append('Content-Type', 'application/json');
+      const raw = JSON.stringify({
+        params: {
+          role: 'user',
+          parts: [
+            {
+              type: 'text',
+              text: text
+            }
+          ],
+          metadata: {
+            conversation_id: conversationId
+          }
+        }
+      });
+      const requestOptions = {
+        method: 'POST',
+        headers: myHeaders,
+        body: raw,
+        redirect: 'follow'
+      };
+      try {
+        const res = await fetch('http://0.0.0.0:12000/message/send', requestOptions);
+        if (res.ok) {
+          setTimeout(async () => {
+            await fetchMessages();
+            loaderDiv.remove();
+          }, 600);
+        } else {
+          loaderDiv.remove();
+          alert('Error al enviar el mensaje.');
+        }
+      } catch (err) {
+        loaderDiv.remove();
+        alert('Error de red al enviar el mensaje.');
+      }
+    };
+  }
+
+  // Permitir enviar con Enter desde un input externo
+  if (!window._messagesAreaInputListener) {
+    window._messagesAreaInputListener = true;
+    document.addEventListener('keydown', function(e) {
+      const input = document.activeElement;
+      if (input && input.id === 'messageInput' && e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        const text = input.value;
+        input.value = '';
+        window.sendMessageFromMessagesArea(text);
+      }
+    });
+  }
+
+  // Agregar CSS solo una vez
+  if (!document.getElementById('messages-area-loader-style')) {
+    const style = document.createElement('style');
+    style.id = 'messages-area-loader-style';
+    style.textContent = `
+      .loader {
+        display: inline-block;
+        width: 18px;
+        height: 18px;
+        border: 3px solid #e0e0e0;
+        border-top: 3px solid #764ba2;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-right: 8px;
+        vertical-align: middle;
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      .message-image {
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        cursor: pointer;
+        transition: transform 0.2s ease;
+      }
+      .message-image:hover {
+        transform: scale(1.02);
+      }
+      .error-message {
+        color: #e74c3c;
+        background: #ffeaea;
+        padding: 10px;
+        border-radius: 5px;
+        margin: 5px 0;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  // Eliminar botón clip y lógica asociada
+</script>
+
+<style>
+  .messages-area {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+  }
+  
+  .message {
+    margin-bottom: 15px;
+    padding: 10px;
+    border-radius: 8px;
+  }
+  
+  .message.user {
+    background-color: #f0f8ff;
+    margin-left: 20%;
+  }
+  
+  .message.agent {
+    background-color: #f8f9fa;
+    margin-right: 20%;
+  }
+  
+  .message-content {
+    word-wrap: break-word;
+    line-height: 1.4;
+  }
+</style>
